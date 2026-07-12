@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+
+  <!-- Mirrors vanilla NeutralEvent's look, but uses our letter class so clicking opens the Quests tab. -->
+  <LetterDef>
+    <defName>GuildQuestsInVanillaTab_QuestsLetter</defName>
+    <letterClass>GuildQuestsInVanillaTab.Letter_OpenQuestsTab</letterClass>
+    <color>(175, 176, 185)</color>
+    <flashColor>(160, 170, 180)</flashColor>
+    <flashInterval>90</flashInterval>
+    <arriveSound>LetterArrive</arriveSound>
+  </LetterDef>
+
+</Defs>

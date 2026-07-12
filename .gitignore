@@ -1,0 +1,6 @@
+# Build intermediates (compiled Assemblies/ are kept)
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
