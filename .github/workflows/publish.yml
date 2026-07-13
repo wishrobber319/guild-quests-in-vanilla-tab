@@ -1,0 +1,130 @@
+name: Publish to Steam Workshop
+
+# Fully automated: push to main -> auto-bump version (patch by default; put [minor] or [major] in a
+# commit message to bump those) -> publish to Workshop with a change note built from your commit
+# messages -> tag the release and cut a GitHub Release (with the stamped Manifest.xml as an asset,
+# so Mod Manager update-checks work without any commit-back).
+# Auth: cached SteamCMD session (config.vdf) in secrets - no password / 2FA seed.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - '.github/**'
+      - 'About/*-banner.png'
+  workflow_dispatch:
+
+permissions:
+  contents: write        # create tags + releases
+
+concurrency:
+  group: workshop-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0            # full history + tags for version calc and changelog
+
+      - name: Compute version and change note
+        id: cn
+        run: |
+          LAST="$(git tag -l 'v*' --sort=-version:refname | head -1)"
+          MSG="$(git log -1 --pretty=%B)"
+          if [ -z "$LAST" ]; then
+            NEXT="1.0.0"; RANGE=""
+          else
+            b="${LAST#v}"; IFS=. read -r MA MI PA <<<"$b"
+            if   echo "$MSG" | grep -qiE '\[major\]'; then NEXT="$((MA+1)).0.0"
+            elif echo "$MSG" | grep -qiE '\[minor\]'; then NEXT="$MA.$((MI+1)).0"
+            else NEXT="$MA.$MI.$((PA+1))"; fi
+            RANGE="$LAST..HEAD"
+          fi
+          echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+
+          LOG="$(git log $RANGE --no-merges --pretty=format:'- %s' 2>/dev/null | grep -viE '\[skip ci\]' || true)"
+          [ -n "$LOG" ] || LOG="$(git log -1 --pretty='- %s')"
+          # Change note = version header + commit list. Sanitize quotes/backslashes for the VDF string.
+          { printf 'v%s\n\n' "$NEXT"; printf '%s\n' "$LOG"; } \
+            | sed 's/\\/\//g; s/"/'"'"'/g' > note.txt
+          echo "----- change note (v$NEXT) -----"; cat note.txt
+
+      - name: Install SteamCMD
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends lib32gcc-s1 rsync ca-certificates
+          mkdir -p "$HOME/steamcmd"
+          curl -sqL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+            | tar zxf - -C "$HOME/steamcmd"
+
+      - name: Restore Steam session
+        run: |
+          mkdir -p "$HOME/Steam/config"
+          echo "${{ secrets.STEAM_CONFIG_VDF }}" | base64 -d > "$HOME/Steam/config/config.vdf"
+
+      - name: Stage, stamp Manifest, build VDF
+        run: |
+          mkdir -p dist
+          rsync -a --exclude Source --exclude .git --exclude .github --exclude '*-banner.png' \
+                --exclude README.md --exclude .gitignore --exclude dist --exclude note.txt ./ dist/
+          if [ -f dist/About/Manifest.xml ]; then
+            sed -i -E "s#<version>[^<]*</version>#<version>${{ steps.cn.outputs.version }}</version>#" dist/About/Manifest.xml
+          fi
+          ITEMID="$(tr -d '[:space:]' < About/PublishedFileId.txt)"
+          NOTE="$(cat note.txt)"
+
+          # Steam description = the plain About.xml text + a clickable BBCode banner footer, templated
+          # per-repo. A banner is only appended if its image actually exists in About/, so this is safe
+          # on mods that don't have banners yet. Sanitize quotes/backslashes for the VDF string.
+          BASE="$(python3 -c "import xml.etree.ElementTree as ET; print((ET.parse('About/About.xml').getroot().findtext('description') or '').strip())")"
+          RAW="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/About"
+          DESC="$(
+            printf '[h1]Description[/h1]\n%s\n' "$BASE"
+            printf '\n[h1]Links[/h1]\n[b]GitHub[/b]: https://github.com/%s\n\n' "$GITHUB_REPOSITORY"
+            [ -f About/collection-banner.png ] && printf '[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763500997][img]%s/collection-banner.png[/img][/url]\n\n' "$RAW"
+            [ -f About/ko-fi-banner.png ]  && printf '[url=https://ko-fi.com/T7I6232BCO][img]%s/ko-fi-banner.png[/img][/url]\n' "$RAW"
+          )"
+          DESC="$(printf '%s' "$DESC" | sed 's/\\/\//g; s/"/'"'"'/g')"
+
+          # NOTE: the Workshop preview/thumbnail is intentionally NOT set here. steamcmd's
+          # workshop_build_item stores the preview in the (legacy) Steam Cloud and reliably fails with
+          # "Failed to update workshop item (Limit exceeded)". Set the preview once via the Steam web
+          # UI ("Add/edit images & videos") or the in-game RimWorld uploader instead. About/Preview.png
+          # is still shipped in the mod content, so RimWorld shows it in the in-game mod list.
+
+          {
+            echo '"workshopitem"'
+            echo '{'
+            echo '  "appid" "294100"'
+            echo "  \"publishedfileid\" \"$ITEMID\""
+            echo "  \"contentfolder\" \"$PWD/dist\""
+            printf '  "changenote" "%s"\n' "$NOTE"
+            printf '  "description" "%s"\n' "$DESC"
+            echo '}'
+          } > item.vdf
+          echo "Publishing item $ITEMID as v${{ steps.cn.outputs.version }}"
+          echo "----- description -----"; printf '%s\n' "$DESC"
+
+      - name: Upload to Steam Workshop
+        run: |
+          set +e
+          out="$("$HOME/steamcmd/steamcmd.sh" +login "${{ secrets.STEAM_USERNAME }}" \
+                 +workshop_build_item "$PWD/item.vdf" +quit 2>&1)"
+          rc=$?
+          set -e
+          echo "$out"
+          echo "steamcmd exit code: $rc"
+          echo "$out" | grep -q "Success." || { echo "::error::Workshop upload failed (see log above)"; exit 1; }
+
+      - name: Tag + GitHub Release (with stamped Manifest asset)
+        run: |
+          V="v${{ steps.cn.outputs.version }}"
+          gh release create "$V" dist/About/Manifest.xml \
+            --title "$V" --notes-file note.txt --target "$GITHUB_SHA"
