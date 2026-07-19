@@ -20,49 +20,6 @@ namespace GuildQuestsInVanillaTab
         }
     }
 
-    [DefOf]
-    public static class GuildQuestsInVanillaTabDefOf
-    {
-        public static LetterDef GuildQuestsInVanillaTab_QuestsLetter;
-
-        static GuildQuestsInVanillaTabDefOf()
-        {
-            DefOfHelper.EnsureInitializedInCtor(typeof(GuildQuestsInVanillaTabDefOf));
-        }
-    }
-
-    // The consolidated "new guild quests" letter: clicking it opens the vanilla Quests tab on the
-    // "Available" sub-tab (where the freshly-posted guild quests live), then dismisses itself.
-    public class Letter_OpenQuestsTab : StandardLetter
-    {
-        // MainTabWindow_Quests remembers its last sub-tab in a private enum field, so it would
-        // otherwise reopen wherever the player left it (often Historical). 0 = QuestsTab.Available.
-        private static readonly FieldInfo CurTabField =
-            AccessTools.Field(typeof(MainTabWindow_Quests), "curTab");
-
-        public override void OpenLetter()
-        {
-            Find.LetterStack.RemoveLetter(this);
-
-            MainButtonDef questsButton = MainButtonDefOf.Quests;
-            if (questsButton == null) return;
-            questsButton.Worker?.InterfaceTryActivate();
-
-            if (questsButton.TabWindow is MainTabWindow_Quests window)
-            {
-                CurTabField?.SetValue(window, Enum.ToObject(CurTabField.FieldType, 0)); // Available
-
-                // Select the first row the Available tab would show: offered, not dismissed/hidden,
-                // ordered by soonest to expire (matching the window's own sort).
-                Quest first = Find.QuestManager.questsInDisplayOrder
-                    .Where(q => q.State == QuestState.NotYetAccepted && !q.dismissed && !q.hiddenInUI && !q.hidden)
-                    .OrderBy(q => q.TicksUntilExpiry)
-                    .FirstOrDefault();
-                window.Select(first);
-            }
-        }
-    }
-
     // Each in-game day the Guild Faction Add-on rolls 5 quest-board listings (lazily, only when its
     // world-map board is opened). This component drives that roll on a daily tick and posts each
     // listing as an offered vanilla quest (via the add-on's own IncidentWorker_IsekaiHunt.CreateHuntQuest,
@@ -71,7 +28,7 @@ namespace GuildQuestsInVanillaTab
     public class GuildQuestVanillaMirror : WorldComponent
     {
         // While true, the per-quest "new quest offered" letters that CreateHuntQuest sends are
-        // swallowed (see Patch_LetterStack_ReceiveLetter) so we can emit one consolidated letter.
+        // swallowed (see Patch_LetterStack_ReceiveLetter) so the daily quest roll is silent.
         internal static bool SuppressQuestLetters;
 
         private int postedDay = -1;
@@ -143,12 +100,8 @@ namespace GuildQuestsInVanillaTab
                     ApplyOneDayOfferExpiry(allQuests[i], now);
                 }
 
-                // One consolidated letter in place of the per-quest letters we just suppressed.
-                // Uses a custom letter class so clicking it opens the vanilla Quests tab directly.
-                Find.LetterStack.ReceiveLetter(
-                    "GuildQuestsInVanillaTab_LetterLabel".Translate(),
-                    "GuildQuestsInVanillaTab_LetterText".Translate(posted),
-                    GuildQuestsInVanillaTabDefOf.GuildQuestsInVanillaTab_QuestsLetter);
+                // No letter: the day's guild quests just appear silently in the Quests tab. The
+                // add-on's own per-quest letters stay swallowed (see SuppressQuestLetters below).
             }
         }
 
@@ -177,7 +130,7 @@ namespace GuildQuestsInVanillaTab
     }
 
     // CreateHuntQuest sends its own "new quest offered" letter per quest. While we batch-post the
-    // day's listings we swallow those so the player gets one consolidated letter instead of five.
+    // day's listings we swallow those so the roll is silent (no letter spam - by design).
     // All ReceiveLetter overloads funnel through ReceiveLetter(Letter, ...), so this one prefix
     // covers them. The suppression window is the synchronous posting loop only.
     [HarmonyPatch(typeof(LetterStack), nameof(LetterStack.ReceiveLetter),

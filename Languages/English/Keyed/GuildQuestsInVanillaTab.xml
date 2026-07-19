@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-    <GuildQuestsInVanillaTab_LetterLabel>New Adventurer's Guild quests</GuildQuestsInVanillaTab_LetterLabel>
-    <GuildQuestsInVanillaTab_LetterText>The Adventurer's Guild has posted {0} new contracts.</GuildQuestsInVanillaTab_LetterText>
     <GuildQuestsInVanillaTab_UseQuestsTab>These guild quests are now offered in your Quests tab - accept them there.</GuildQuestsInVanillaTab_UseQuestsTab>
 </LanguageData>
