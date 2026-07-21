@@ -88,8 +88,8 @@ jobs:
           DESC="$(
             printf '[h1]Description[/h1]\n%s\n' "$BASE"
             printf '\n[h1]Links[/h1]\n'
-            [ -f About/collection-banner.png ] && printf '[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763500997][img]%s/collection-banner.png[/img][/url]\n\n' "$RAW"
-            [ -f About/ko-fi-banner.png ]  && printf '[url=https://ko-fi.com/T7I6232BCO][img]%s/ko-fi-banner.png[/img][/url]\n\n' "$RAW"
+            [ -f About/collection-banner.png ] && printf '[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763500997][img]%s/collection-banner.png[/img][/url]\n' "$RAW"
+            [ -f About/ko-fi-banner.png ]  && printf '[url=https://ko-fi.com/T7I6232BCO][img]%s/ko-fi-banner.png[/img][/url]\n' "$RAW"
             [ -f About/github-banner.png ] && printf '[url=https://github.com/%s][img]%s/github-banner.png[/img][/url]\n' "$GITHUB_REPOSITORY" "$RAW"
           )"
           DESC="$(printf '%s' "$DESC" | sed 's/\\/\//g; s/"/'"'"'/g')"
