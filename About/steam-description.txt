@@ -1,0 +1,9 @@
+[b]Read guild hunts from the Quests tab.[/b] The Guild Faction Add-on posts its daily hunts on a world-map board. This mirrors those listings into RimWorld's normal Quests tab, so you can browse and accept them without sending a caravan to the board.
+
+[hr][/hr]
+[b]What's inside[/b]
+[list]
+[*][b]Hunts in the vanilla Quests tab.[/b] Daily guild listings appear alongside your other quests.
+[*][b]No travel required.[/b] Accept a hunt from home instead of walking to the world board.
+[*][b]Requires Isekai RPG Leveling[/b] and its Guild Faction Add-on.
+[/list]
