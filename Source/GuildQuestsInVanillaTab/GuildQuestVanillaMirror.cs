@@ -140,6 +140,21 @@ namespace GuildQuestsInVanillaTab
         public static bool Prefix() => !GuildQuestVanillaMirror.SuppressQuestLetters;
     }
 
+    // Hide the vanilla "Quest expires in X" alert (Alert_QuestExpiresSoon) entirely, for ALL quests.
+    // The mirrored guild board rolls several offers a day, each on a short 1-day acceptance window, so
+    // this alert would nag almost constantly; the player just reads the offers in the Quests tab. By
+    // request this is global (not gated to guild quests). GetReport is virtual, so this override target
+    // isn't inlined; returning an inactive report skips the vanilla body so the alert never activates.
+    [HarmonyPatch(typeof(Alert_QuestExpiresSoon), "GetReport")]
+    public static class Patch_Alert_QuestExpiresSoon_Silence
+    {
+        public static bool Prefix(ref AlertReport __result)
+        {
+            __result = default(AlertReport); // active == false -> alert stays hidden
+            return false;
+        }
+    }
+
     // The listings are now auto-posted to the vanilla Quests tab, so the board's own "Accept" would
     // create a duplicate offered quest. Skip it and point the player to the Quests tab instead. The
     // board still works as a read-only preview.

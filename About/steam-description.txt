@@ -5,5 +5,6 @@
 [list]
 [*][b]Hunts in the vanilla Quests tab.[/b] Daily guild listings appear alongside your other quests.
 [*][b]No travel required.[/b] Accept a hunt from home instead of walking to the world board.
+[*][b]No expiry nagging.[/b] Hides the vanilla "Quest expires in X" alert, which the short-lived daily guild offers would otherwise trigger nonstop.
 [*][b]Requires Isekai RPG Leveling[/b] and its Guild Faction Add-on.
 [/list]
